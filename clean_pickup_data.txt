@@ -1,0 +1,111 @@
+
+		Cleaned pickup dataset
+
+>shang=read.csv(file.choose())
+> hang=read.csv(file.choose()) 
+>chong=read.csv(file.choose()) 
+> jilin=read.csv(file.choose())
+> yantai=read.csv(file.choose())
+> pickup_data<- rbind(shang, hang, chong, jilin, yantai)#To combine dataset
+> library(lubridate)
+
+Attaching package: ‘lubridate’
+
+The following objects are masked from ‘package:base’:
+
+    date, intersect, setdiff, union
+
+> library(dplyr)
+View(pickup_data)
+> is.na(pickup_data)#find missing value
+sum(is.na(pickup_data))#count missing value
+[1] 9150466
+> is.data.frame(pickup_data)# Identify missing values
+[1] TRUE
+> pickup_data$lng<- as.numeric(pickup_data$lng)
+> pickup_data$lat<- as.numeric(pickup_data$lat)#To change the column to numerical
+> #To remove columns from dataset
+> pickup_datan <- pickup_data %>% select(-accept_gps_time,-pickup_gps_time)
+> View(pickup_datan)
+> #Ensure 'NA' values are handled correctly by adding 'Unknown' as a level
+> pickup_datan$aoi_type <- factor(pickup_datan$aoi_type,levels = c(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, "Unknown"),labels = c("Zero", "One", "Two", "Three", "Four", "Five", "Six","Seven", "Eight", "Nine", "Eleven", "Twelve","Thirteen", "Fourteen", "Fifteen", "Unknown"))
+> #Fill missing values for categorical columns
+> pickup_datan$aoi_type[is.na(pickup_datan$aoi_type)] <- "Unknown"
+> pickup_datan$city[is.na(pickup_datan$city)] <- "Unknown City"
+> #Find the mean value of lng and lat column
+> meanlng <- mean(pickup_datan$lng, na.rm = TRUE)
+> meanlat <- mean(pickup_datan$lat, na.rm = TRUE)
+> meanlng
+[1] 118.3564
+> meanlat
+[1] 32.30873
+> # Replace missing longitude (lng) with the mean of the column
+> pickup_datan$lng[is.na(pickup_datan$lng)] <- mean(pickup_datan$lng, na.rm = TRUE)
+> # Replace missing latitude (lat) with the mean of the column
+> pickup_datan$lat[is.na(pickup_datan$lat)] <- mean(pickup_datan$lat, na.rm = TRUE)
+> # Drop rows with missing values in 'accept_time' or 'pickup_time'
+> pickup_datan <- pickup_datan[!is.na(pickup_datan$accept_time) & !is.na(pickup_datan$pickup_time), ]
+> # Remove duplicates based on 'order_id'
+> pickup_datan <- pickup_datan[!duplicated(pickup_datan$order_id), ]
+> # Convert the time columns to datetime format using as.POSIXct
+> convert_col<- c("accept_time","pickup_time","time_window_start","time_window_end")
+> pickup_datan[convert_col] <- lapply(pickup_datan[convert_col], function(x) { as.POSIXct(paste0("2024-", x), format="%Y-%m-%d %H:%M:%S")})
+> mean_accept_gps_lng <- mean(pickup_datan$accept_gps_lng, na.rm = TRUE)
+> mean_accept_gps_lat <- mean(pickup_datan$accept_gps_lat, na.rm = TRUE)
+> mean_pickup_gps_lng <- mean(pickup_datan$pickup_gps_lng, na.rm = TRUE)
+> mean_pickup_gps_lat <- mean(pickup_datan$pickup_gps_lat, na.rm = TRUE)
+> mean_accept_gps_lng
+[1] 118.5414
+> mean_accept_gps_lat
+[1] 32.70376
+> mean_pickup_gps_lng
+[1] 118.3813
+> mean_pickup_gps_lat
+[1] 32.57753
+> # Replace missing value with the mean of the column
+> pickup_datan$accept_gps_lng[is.na(pickup_datan$accept_gps_lng)] <- mean(pickup_datan$accept_gps_lng, na.rm = TRUE)
+> pickup_datan$accept_gps_lat[is.na(pickup_datan$accept_gps_lat)] <- mean(pickup_datan$accept_gps_lat, na.rm = TRUE)
+> pickup_datan$pickup_gps_lng[is.na(pickup_datan$pickup_gps_lng)] <- mean(pickup_datan$pickup_gps_lng, na.rm = TRUE)
+> pickup_datan$pickup_gps_lat[is.na(pickup_datan$pickup_gps_lat)] <- mean(pickup_datan$pickup_gps_lat, na.rm = TRUE)
+> #calculate Time Window Duration
+> # Assuming pickup_datan is a data frame and time_window_start and time_window_end are in POSIXct format
+> pickup_datan$time_window_start <- as.POSIXct(pickup_datan$time_window_start, format = "%Y-%m-%d %H:%M:%S")
+> pickup_datan$time_window_end <- as.POSIXct(pickup_datan$time_window_end, format = "%Y-%m-%d %H:%M:%S")
+> # Calculate time difference in seconds
+> pickup_datan$time_window_duration <- as.numeric(difftime(pickup_datan$time_window_end, pickup_datan$time_window_start, units = "secs"))
+> # Calculate the Acceptance to Pickup Duration in seconds
+> pickup_datan$task_duration <- as.numeric(difftime(pickup_datan$pickup_time, pickup_datan$accept_time, units = "secs"))
+> #Calculate Distance Between Acceptance and Pickup
+> #Define the function to calculate distance
+> calculate_distance <- function(lng1, lat1, lng2, lat2) {return(sqrt((lng2 - lng1)^2 + (lat2 - lat1)^2))}
+> # Assuming pickup_datan is a data frame with the columns accept_gps_lng, accept_gps_lat, pickup_gps_lng, and pickup_gps_lat
+> pickup_datan <- pickup_datan %>%mutate(distance = mapply(calculate_distance,accept_gps_lng, accept_gps_lat,pickup_gps_lng, pickup_gps_lat))
+> #Identify and Filter Outliers
+> # Calculate the first quartile (Q1), third quartile (Q3), and IQR
+> q1 <- quantile(pickup_datan$task_duration, 0.25)
+> q3 <- quantile(pickup_datan$task_duration, 0.75)
+> iqr <- q3 - q1
+> q1
+ 25% 
+3840 
+> q3
+  75% 
+11820 
+> iqr
+ 75% 
+7980 
+> # Calculate the lower and upper bounds
+> lower_bound <- q1 - 1.5 * iqr
+> upper_bound <- q3 + 1.5 * iqr
+> # Filter the data to remove outliers based on task_duration
+> pickup_datan <- pickup_datan %>%filter(task_duration >= lower_bound & task_duration <= upper_bound)
+> lower_bound
+  25% 
+-8130 
+> upper_bound
+  75% 
+23790 
+> View(pickup_datan)
+> # Save the preprocessed data to a CSV file
+> write.csv(pickup_datan, "cleaned_pickup_data.csv", row.names = FALSE)
+> save.image("~/clean_pickup_data.RData")

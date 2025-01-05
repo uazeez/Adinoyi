@@ -1,0 +1,31 @@
+
+	Cleaned delivery dataset
+
+> shang=read.csv(file.choose())#load data
+> hang=read.csv(file.choose()) 
+> chong=read.csv(file.choose()) 
+> jilin=read.csv(file.choose())
+> yantai=read.csv(file.choose())
+> delivery_data<- rbind(shang, hang, chong, jilin, yantai)#To combine dataset
+> is.data.frame(delivery_data)# Identify missing values
+[1] TRUE
+> is.na(delivery_data)#find missing value
+> sum(is.na(delivery_data))#count missing value
+[1] 6754
+> delivery_datac <- na.omit(delivery_data)# Remove rows with any missing values
+> delivery_datacd<- delivery_datac [!duplicated(delivery_datac$order_id),]#remove duplicate using order_id as unique identifier
+> library(lubridate)
+> library(dplyr)
+> convert_col<- c("delivery_time","accept_time")
+> delivery_datacd[convert_col]<-lapply(delivery_datacd[convert_col], function(x){as.POSIXct(paste0(format(Sys.Date(), "%Y-"),x),format="%Y-%m-%d %H:%M:%S")})
+> View(delivery_datacd)
+> delivery_datacd$lng<- as.numeric(delivery_datacd$lng)
+> delivery_datacd$lat<- as.numeric(delivery_datacd$lat)
+> #change variable to categorical
+> delivery_datacd$category<-factor(delivery_datacd$aoi_type)
+> delivery_datacd$aoi_type<- cut(delivery_datacd$aoi_type,breaks = c(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15),labels = c("A","C","D","E","F","G","H","I","J","K","L","M","N","O","P"), right =FALSE)
+> #checking for anomalies in longitude and latitude.
+> delivery_datacd$lat_anomaly <- ifelse(delivery_datacd$lat < -90 | delivery_datacd$lat > 90, TRUE, FALSE)
+> delivery_datacd$lng_anomaly <- ifelse(delivery_datacd$lng < -180 | delivery_datacd$lng > 180, TRUE, FALSE)
+> #To save the clean data.
+> write.csv(delivery_datacd, file = "cleaned_delivery_data.csv", row.names = FALSE)
